@@ -39,7 +39,34 @@ test('exercise metadata passes structural and safety validation', () => {
 
 test('starter scaffold does not pass learner grading before implementation', () => {
   for (const name of ['step1-architecture', 'step2-data', 'step3-api', 'step4-frontend']) {
-    assert.throws(() => checks[name](repositoryRoot));
+    const root = copyAll();
+    if (name === 'step1-architecture') {
+      const architecture = path.join(root, 'docs/architecture.md');
+      const labels = [
+        'Presentation tier decision',
+        'Logic tier decision',
+        'Data tier decision',
+        'Activity tracking approach',
+        'Team management approach',
+        'Leaderboard approach',
+        'Workout suggestions approach',
+      ];
+      let text = fs.readFileSync(architecture, 'utf8');
+      for (const label of labels) text = text.replace(new RegExp(`^- ${label}:.*$`, 'gm'), `- ${label}:`);
+      fs.writeFileSync(architecture, text);
+    } else if (name === 'step2-data') {
+      for (const model of ['User', 'Team', 'Activity', 'Workout']) {
+        write(root, `octofit-tracker/backend/src/models/${model}.ts`, `import { Schema, model } from 'mongoose';\nconst schema = new Schema({ name: String });\nexport const ${model} = model('${model}', schema);\n`);
+      }
+      write(root, 'octofit-tracker/backend/src/scripts/seed.ts', `export async function seed() { /* TODO */ }\n`);
+    } else if (name === 'step3-api') {
+      write(root, 'octofit-tracker/backend/src/services/octofitService.ts', `export async function createActivity() { throw new Error('not implemented yet'); }\nexport async function getLeaderboard() { return []; }\nexport async function suggestWorkouts() { return []; }\n`);
+    } else if (name === 'step4-frontend') {
+      for (const component of ['Activities', 'Teams', 'Leaderboard', 'Workouts']) {
+        write(root, `octofit-tracker/frontend/src/components/${component}.tsx`, `export default function ${component}(){ return <p>Implementation pending</p>; }\n`);
+      }
+    }
+    assert.throws(() => checks[name](root));
   }
 });
 
@@ -213,14 +240,20 @@ test('workflow-level write permissions are rejected', () => {
 
 test('step one requires a completed architecture plan', () => {
   const root = copyAll();
-  assert.throws(() => checks['step1-architecture'](root), /Architecture plan must complete/);
   const architecture = path.join(root, 'docs/architecture.md');
+  let text = fs.readFileSync(architecture, 'utf8');
+  for (const label of ['Presentation tier decision', 'Logic tier decision', 'Data tier decision', 'Activity tracking approach', 'Team management approach', 'Leaderboard approach', 'Workout suggestions approach']) {
+    text = text.replace(new RegExp(`^- ${label}:.*$`, 'gm'), `- ${label}:`);
+  }
+  fs.writeFileSync(architecture, text);
+  assert.throws(() => checks['step1-architecture'](root), /Architecture plan must complete/);
   fs.writeFileSync(architecture, fs.readFileSync(architecture, 'utf8').replaceAll('decision:', 'decision: keep boundaries clear').replaceAll('approach:', 'approach: implement from tests'));
   assert.doesNotThrow(() => checks['step1-architecture'](root));
 });
 
 test('data grader rejects placeholder seed script', () => {
   const root = copyAll();
+  write(root, 'octofit-tracker/backend/src/scripts/seed.ts', `export async function seed() { /* TODO: implement seed */ }\n`);
   assert.throws(() => checks['step2-data'](root), /required validation|placeholder/);
 });
 
